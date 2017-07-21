@@ -47,6 +47,7 @@
 I2C_HandleTypeDef hi2c2;
 
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart1;
 
@@ -55,19 +56,13 @@ UART_HandleTypeDef huart1;
 
 // Used to process commands from BLE Commands via UART
 
-#define RX_CMD 1
-#define RX_CMD_LENGTH 2
-#define RX_CMD_DATA 3
-#define RX_CMD_READY 4
-#define RX_CMD_BUFFER_SIZE 255
-#define RX_BUFFER_SIZE 1024
-#define LCD_LINE_LENGTH 16
-
 int rx_state = RX_CMD;
 int rx_write_index = 0;
 int rx_read_index = 0;
 int rx_cmd_index = 0;
 int rx_length = 0;
+int rx_analog_enable = FALSE;
+int rx_analog_enable_index = -1;
 uint8_t rx_byte;
 uint8_t rx_cmd;
 uint8_t rx_cmd_buffer[RX_CMD_BUFFER_SIZE];
@@ -77,9 +72,8 @@ char lcd_line1[LCD_LINE_LENGTH];
 char lcd_line2[LCD_LINE_LENGTH];
 
 // Pulse Width for PWM
-#define TRUE 1
-#define FALSE 0
-uint16_t pulsewidth[4] = {0, 0, 0, 0};
+int analog_out_enabled[8] = {FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE};
+uint16_t pulsewidth[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 int update_motors = TRUE;
 
 /* USER CODE END PV */
@@ -90,16 +84,20 @@ static void MX_GPIO_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM4_Init(void);
 static void MX_NVIC_Init(void);
                                     
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+                                
                                 
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
 
+void initDevice(void);
 int parseCmd(void);
 void processCmd(void);
+void runCmd(void);
 void addToCircularRxBuffer(uint8_t);
 
 /* USER CODE END PFP */
@@ -123,6 +121,8 @@ int main(void)
 
   /* USER CODE BEGIN Init */
 
+  initDevice();
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -137,6 +137,7 @@ int main(void)
   MX_I2C2_Init();
   MX_USART1_UART_Init();
   MX_TIM3_Init();
+  MX_TIM4_Init();
 
   /* Initialize interrupts */
   MX_NVIC_Init();
@@ -153,12 +154,9 @@ int main(void)
 	  ;
   HAL_UART_Receive_IT(&huart1, &rx_byte, 1);
 
-  // PWM Timer
+  // PWM Timers
   HAL_TIM_Base_Start(&htim3);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+  HAL_TIM_Base_Start(&htim4);
 
   /* USER CODE END 2 */
 
@@ -172,21 +170,7 @@ int main(void)
 	  while(!parseCmd())
 		  ;
 	  processCmd();
-	  if (rx_cmd == 2) {
-		  __HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_1, (uint16_t)(1000+pulsewidth[0]));
-		  __HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_2, (uint16_t)(1000+pulsewidth[1]));
-		  __HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_3, (uint16_t)(1000+pulsewidth[2]));
-		  __HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_4, (uint16_t)(1000+pulsewidth[3]));
-	  }
-	  else if (rx_cmd == 3) {
-		  lcd_display_string(&hi2c2, &lcd_line1[0], 1);
-		  lcd_display_string(&hi2c2, &lcd_line2[0], 2);
-	  }
-	  else if (rx_cmd == 4) {
-		  lcd_line1[0] = '\0';
-		  lcd_line2[0] = '\0';
-		  lcd_clear(&hi2c2);
-	  }
+	  runCmd();
 
 	  /*
 	for (uint32_t i = 0; i < 1000; i++) {
@@ -260,13 +244,13 @@ void SystemClock_Config(void)
 static void MX_NVIC_Init(void)
 {
   /* I2C2_EV_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(I2C2_EV_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(I2C2_EV_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(I2C2_EV_IRQn);
   /* I2C2_ER_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(I2C2_ER_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(I2C2_ER_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(I2C2_ER_IRQn);
   /* USART1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(USART1_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(USART1_IRQn, 2, 0);
   HAL_NVIC_EnableIRQ(USART1_IRQn);
 }
 
@@ -299,7 +283,7 @@ static void MX_TIM3_Init(void)
   TIM_OC_InitTypeDef sConfigOC;
 
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 16;
+  htim3.Init.Prescaler = 15;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim3.Init.Period = 20000;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -354,6 +338,70 @@ static void MX_TIM3_Init(void)
 
 }
 
+/* TIM4 init function */
+static void MX_TIM4_Init(void)
+{
+
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+  TIM_OC_InitTypeDef sConfigOC;
+
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 15;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 20000;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  HAL_TIM_MspPostInit(&htim4);
+
+}
+
 /* USART1 init function */
 static void MX_USART1_UART_Init(void)
 {
@@ -386,21 +434,133 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+void initDevice() {
+  rx_state = RX_CMD;
+  rx_write_index = 0;
+  rx_read_index = 0;
+  rx_cmd_index = 0;
+  rx_length = 0;
+  rx_analog_enable = FALSE;
+  rx_analog_enable_index = -1;
+}
+
 void unknownCmd() {
 	char* error = "unknown cmd";
 	lcd_clear(&hi2c2);
 	lcd_display_string(&hi2c2, error, 1);
 }
 
+void runCmd() {
+	if (rx_cmd == INIT) {
+		initDevice();
+	}
+	else if (rx_cmd == ANALOG_OUT_EN) {
+		  if (rx_analog_enable == TRUE) {
+			  switch(rx_analog_enable_index) {
+			  case 0:
+				  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+				  break;
+			  case 1:
+				  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+				  break;
+			  case 2:
+				  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
+				  break;
+			  case 3:
+				  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+				  break;
+			  case 4:
+				  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+				  break;
+			  case 5:
+				  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
+				  break;
+			  case 6:
+				  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
+				  break;
+			  case 7:
+				  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
+				  break;
+			  default:
+				  break;
+			  }
+
+		  }
+		  else {
+			  switch(rx_analog_enable_index) {
+			  case 0:
+				  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+				  break;
+			  case 1:
+				  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
+				  break;
+			  case 2:
+				  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_3);
+				  break;
+			  case 3:
+				  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);
+				  break;
+			  case 4:
+				  HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_1);
+				  break;
+			  case 5:
+				  HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_2);
+				  break;
+			  case 6:
+				  HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_3);
+				  break;
+			  case 7:
+				  HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_4);
+				  break;
+			  default:
+				  break;
+			  }
+		  }
+		  analog_out_enabled[rx_analog_enable_index] = rx_analog_enable;
+	}
+	else if (rx_cmd == SERVO_VAL || rx_cmd == PWM_VAL) {
+		  __HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_1, pulsewidth[0]);
+		  __HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_2, pulsewidth[1]);
+		  __HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_3, pulsewidth[2]);
+		  __HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_4, pulsewidth[3]);
+		  __HAL_TIM_SetCompare(&htim4, TIM_CHANNEL_1, pulsewidth[4]);
+		  __HAL_TIM_SetCompare(&htim4, TIM_CHANNEL_2, pulsewidth[5]);
+		  __HAL_TIM_SetCompare(&htim4, TIM_CHANNEL_3, pulsewidth[6]);
+		  __HAL_TIM_SetCompare(&htim4, TIM_CHANNEL_4, pulsewidth[7]);
+	}
+	else if (rx_cmd == LCD_TEXT) {
+		  lcd_display_string(&hi2c2, &lcd_line1[0], 1);
+		  lcd_display_string(&hi2c2, &lcd_line2[0], 2);
+	}
+	else if (rx_cmd == LCD_CLEAR) {
+		  lcd_line1[0] = '\0';
+		  lcd_line2[0] = '\0';
+		  lcd_clear(&hi2c2);
+	}
+}
+
 void processCmd() {
-	if (rx_cmd == 2) {
-		uint8_t servo = rx_cmd_buffer[0];
+	if (rx_cmd == ANALOG_OUT_EN) {
+		uint8_t index = rx_cmd_buffer[0];
+		uint8_t value = rx_cmd_buffer[1];
+		rx_analog_enable_index = (int)index;
+		rx_analog_enable = (int)value;
+	}
+	else if (rx_cmd == SERVO_VAL) {
+		uint8_t index = rx_cmd_buffer[0];
 		uint8_t valueHigh = rx_cmd_buffer[1];
 		uint8_t valueLow = rx_cmd_buffer[2];
 		uint16_t value = ((((uint16_t)valueHigh) << 8) & 0xFF00) | (((uint16_t)valueLow) & 0xFF);
-		pulsewidth[servo] = value;
+		pulsewidth[index] = 1000+value; // Servo or brushless motor PWM
 	}
-	else if (rx_cmd == 3) {
+	else if (rx_cmd == PWM_VAL) {
+		uint8_t index = rx_cmd_buffer[0];
+		uint8_t valueHigh = rx_cmd_buffer[1];
+		uint8_t valueLow = rx_cmd_buffer[2];
+		uint16_t value = ((((uint16_t)valueHigh) << 8) & 0xFF00) | (((uint16_t)valueLow) & 0xFF);
+		pulsewidth[index] = 20*value; // Normal led fade/dc motor PWM (virtual analogue) signal
+	}
+	else if (rx_cmd == LCD_TEXT) {
 		uint8_t line = (rx_cmd_buffer[0]+1);
 		char* str = (char*)(&rx_cmd_buffer[1]);
 		char* dest = &lcd_line1[0];
@@ -411,7 +571,7 @@ void processCmd() {
 			*dest++ = *str++;
 		*dest++ = '\0';
 	}
-	if (rx_cmd < 1 || rx_cmd > 4) {
+	if (rx_cmd > 5) {
 		unknownCmd();
 	}
 }
@@ -439,17 +599,15 @@ int parseCmd() {
 		}
 		break;
 	case RX_CMD_DATA:
+		rx_cmd_buffer[rx_cmd_index++] = byte;
+		// Place a zero after in case its a string that needs null terminating
+		rx_cmd_buffer[rx_cmd_index] = 0x00;
 		rx_length--;
 		if (rx_length == 0) {
 			rx_length = 0;
 			rx_cmd_index = 0;
 			rx_state = RX_CMD;
 			return TRUE;
-		}
-		else {
-			rx_cmd_buffer[rx_cmd_index++] = byte;
-			// Place a zero after in case its a string that needs null terminating
-			rx_cmd_buffer[rx_cmd_index] = 0x00;
 		}
 		break;
 	default:

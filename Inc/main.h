@@ -48,6 +48,27 @@
 
 /* USER CODE BEGIN Private defines */
 
+// Protocol defines
+#define INIT 0
+#define ANALOG_OUT_EN 1
+#define SERVO_VAL 2
+#define PWM_VAL 3
+#define LCD_TEXT 4
+#define LCD_CLEAR 5
+
+// other defines
+#define TRUE 1
+#define FALSE 0
+#define RX_CMD 1
+#define RX_CMD_LENGTH 2
+#define RX_CMD_DATA 3
+#define RX_CMD_READY 4
+#define RX_CMD_BUFFER_SIZE 255
+#define RX_BUFFER_SIZE 1024
+#define LCD_LINE_LENGTH 16
+
+
+
 /* USER CODE END Private defines */
 
 void _Error_Handler(char *, int);

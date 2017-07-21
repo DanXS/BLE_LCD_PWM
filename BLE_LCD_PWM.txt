@@ -1,0 +1,67 @@
+Configuration	BLE_LCD_PWM
+STM32CubeMX 	4.21.0
+Date	07/21/2017
+MCU	STM32F401RETx
+
+
+
+PERIPHERALS	MODES	FUNCTIONS	PINS
+I2C2	I2C	I2C2_SCL	PB10
+I2C2	I2C	I2C2_SDA	PB3
+SYS	SysTick	SYS_VS_Systick	VP_SYS_VS_Systick
+TIM3	Internal Clock	TIM3_VS_ClockSourceINT	VP_TIM3_VS_ClockSourceINT
+TIM3	PWM Generation CH1	TIM3_CH1	PA6
+TIM3	PWM Generation CH2	TIM3_CH2	PA7
+TIM3	PWM Generation CH3	TIM3_CH3	PB0
+TIM3	PWM Generation CH4	TIM3_CH4	PB1
+TIM4	Internal Clock	TIM4_VS_ClockSourceINT	VP_TIM4_VS_ClockSourceINT
+TIM4	PWM Generation CH1	TIM4_CH1	PB6
+TIM4	PWM Generation CH2	TIM4_CH2	PB7
+TIM4	PWM Generation CH3	TIM4_CH3	PB8
+TIM4	PWM Generation CH4	TIM4_CH4	PB9
+USART1	Asynchronous	USART1_RX	PA10
+USART1	Asynchronous	USART1_TX	PA9
+
+
+
+Pin Nb	PINs	FUNCTIONs	LABELs
+22	PA6	TIM3_CH1	
+23	PA7	TIM3_CH2	
+26	PB0	TIM3_CH3	
+27	PB1	TIM3_CH4	
+29	PB10	I2C2_SCL	
+42	PA9	USART1_TX	
+43	PA10	USART1_RX	
+55	PB3	I2C2_SDA	
+58	PB6	TIM4_CH1	
+59	PB7	TIM4_CH2	
+61	PB8	TIM4_CH3	
+62	PB9	TIM4_CH4	
+
+
+
+SOFTWARE PROJECT
+
+Project Settings : 
+Project Name : BLE_LCD_PWM
+Project Folder : /Users/danshepherd/Documents/BLE_LCD_PWM
+Toolchain / IDE : SW4STM32
+Firmware Package Name and Version : STM32Cube FW_F4 V1.16.0
+
+
+Code Generation Settings : 
+STM32Cube Firmware Library Package : Copy only the necessary library files
+Generate peripheral initialization as a pair of '.c/.h' files per peripheral : No
+Backup previously generated files when re-generating : No
+Delete previously generated files when not re-generated : Yes
+Set all free pins as analog (to optimize the power consumption) : No
+
+
+Toolchains Settings : 
+Compiler Optimizations : Balanced Size/Speed
+
+
+
+
+
+
