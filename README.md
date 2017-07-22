@@ -37,4 +37,6 @@ The difference between the SERVO_VAL and PWM_VAL commands is just in the overall
 
 The basic functionaly of the program is that it continously tries to read from a circular buffer which is populated via the uart device - in this case the BLE module.  An interupt is generated from the UART source that at the same time fills the circular buffer.  Commands are read off and executed as the become available.
 
+Please also check out the youtube of it working:
 
+https://www.youtube.com/watch?v=zFuNHCO-w5U
