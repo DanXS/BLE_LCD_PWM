@@ -40,3 +40,7 @@ The basic functionaly of the program is that it continously tries to read from a
 Please also check out the youtube of it working:
 
 https://www.youtube.com/watch?v=zFuNHCO-w5U
+
+There is also an instructable here to help:
+
+https://www.instructables.com/id/Controlling-Devices-in-Swift-With-BLE/
