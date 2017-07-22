@@ -89,8 +89,6 @@ static void MX_NVIC_Init(void);
                                     
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
                                 
-                                
-
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
 
@@ -146,9 +144,8 @@ int main(void)
 
   // LCD
   initLCD(&hi2c2);
-  //char* msg = "LCD Active";
-  //lcd_display_string(&hi2c2, msg, 1);
   lcd_clear(&hi2c2);
+
   // UART
   while(huart1.gState == HAL_UART_STATE_BUSY_RX || huart1.gState == HAL_UART_STATE_BUSY_TX)
 	  ;
@@ -171,17 +168,6 @@ int main(void)
 		  ;
 	  processCmd();
 	  runCmd();
-
-	  /*
-	for (uint32_t i = 0; i < 1000; i++) {
-		__HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_1, 1000+i);
-		__HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_2, 2000-(2*i % 1000));
-		HAL_Delay(10);
-		//char countStr[10];
-		//sprintf(countStr, "%d", pulsewidth);
-		//lcd_display_string(&hi2c2, countStr, 1);
-	}
-	*/
 
   }
   /* USER CODE END 3 */

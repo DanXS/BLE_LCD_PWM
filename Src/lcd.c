@@ -26,9 +26,7 @@ void dev_lcd_write_cmd(I2C_HandleTypeDef* hi2c, uint8_t cmd) {
 
 void lcd_strobe(I2C_HandleTypeDef* hi2c, uint8_t data) {
 	dev_lcd_write_cmd(hi2c, data | LCD_EN | LCD_BACKLIGHT);
-	//HAL_Delay(5);
 	dev_lcd_write_cmd(hi2c, ((data & ~LCD_EN) | LCD_BACKLIGHT));
-	//HAL_Delay(1);
 }
 
 void lcd_write_four_bits(I2C_HandleTypeDef* hi2c, uint8_t data) {
