@@ -66,6 +66,7 @@ int rx_analog_enable_index = -1;
 uint8_t rx_byte;
 uint8_t rx_cmd;
 uint8_t rx_cmd_buffer[RX_CMD_BUFFER_SIZE];
+uint8_t tx_cmd_buffer[TX_CMD_BUFFER_SIZE];
 uint8_t rx_buffer[RX_BUFFER_SIZE];
 
 char lcd_line1[LCD_LINE_LENGTH];
@@ -430,10 +431,13 @@ void initDevice() {
   rx_analog_enable_index = -1;
 }
 
-void unknownCmd() {
-	char* error = "unknown cmd";
-	lcd_clear(&hi2c2);
-	lcd_display_string(&hi2c2, error, 1);
+void unknownCmd(uint8_t cmd) {
+	tx_cmd_buffer[0] = UNKNOWN_CMD;
+	tx_cmd_buffer[1] = 1;
+	tx_cmd_buffer[2] = cmd;
+	while(huart1.gState != HAL_UART_STATE_READY)
+		  ;
+	HAL_UART_Transmit_IT(&huart1, &tx_cmd_buffer[0], 3);
 }
 
 void runCmd() {
@@ -558,7 +562,7 @@ void processCmd() {
 		*dest++ = '\0';
 	}
 	if (rx_cmd > 5) {
-		unknownCmd();
+		unknownCmd(rx_cmd);
 	}
 }
 
